@@ -612,10 +612,36 @@ class tp_parser {
             $this->parsetext($node->{'data-quickview'});
         }
 
-        // Meta content (keywords, description) are also good places to translate (but not in robots... or http-equiv)
-        if ($node->tag == 'meta' && $node->content && ($node->name != 'robots') && ($node->name != 'viewport') && ($node->{'http-equiv'} != 'Content-Type')) {
-            $this->parsetext($node->content);
-        }
+// Meta content
+if (
+    $node->tag == 'meta' &&
+    $node->content &&
+    ($node->name != 'robots') &&
+    ($node->name != 'viewport') &&
+    ($node->{'http-equiv'} != 'Content-Type')
+) {
+
+    // Open Graph URL: rewrite it as an URL, don't translate it as text
+    if (
+        isset($node->property) &&
+        strcasecmp($node->property, 'og:url') == 0
+    ) {
+        $node->content = call_user_func_array(
+            $this->url_rewrite_func,
+            array($node->content)
+        );
+
+    // Open Graph locale: machine-readable value, never translate it
+    } elseif (
+        isset($node->property) &&
+        strcasecmp($node->property, 'og:locale') == 0
+    ) {
+        // Do nothing
+
+    } else {
+        $this->parsetext($node->content);
+    }
+}
 
         // recurse
         foreach ($node->nodes as $c) {
@@ -1012,11 +1038,17 @@ class tp_parser {
                     }
                 }
             }
-            if ($newtext) {
-                $e->content = $newtext . $right;
-                tp_logger("content-phrase: $newtext", 4);
+            if (!$translated_text && $this->is_auto_translate && !$this->is_edit_mode) {
+                tp_logger('untranslated meta for ' . $ep->phrase . ' ' . $this->lang);
+                    $hiddenspans .= $this->create_edit_span(
+                    $ep->phrase,
+                    $translated_text,
+                    $source,
+                    true,
+                    $ep->srclang
+                    );
+                }
             }
-        }
 
         if ($hiddenspans) {
             $body = $this->html->find('body', 0);
